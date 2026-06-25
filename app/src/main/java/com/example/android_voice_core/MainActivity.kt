@@ -5,11 +5,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.example.android_voice_core.audio.AudioTestService
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
@@ -46,7 +49,26 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startAudioService() {
+        val modelPath = copyModelAssetToCache()
+        val handle = WhisperBridge.init(modelPath)
+        val pcm = ShortArray(1600) { 0 }
+        val text = WhisperBridge.transcribe(handle, pcm)
+        Log.d("WhisperBridge", "text=$text")
+
         val intent = Intent(this, AudioTestService::class.java)
         ContextCompat.startForegroundService(this, intent)
+    }
+
+    private fun copyModelAssetToCache(): String {
+        val targetFile = File(cacheDir, "models/ggml-tiny.en.bin")
+        if (!targetFile.exists()) {
+            targetFile.parentFile?.mkdirs()
+            assets.open("models/ggml-tiny.en.bin").use { input ->
+                FileOutputStream(targetFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+        }
+        return targetFile.absolutePath
     }
 }
