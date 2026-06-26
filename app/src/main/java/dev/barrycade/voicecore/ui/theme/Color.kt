@@ -1,4 +1,4 @@
-package com.example.android_voice_core.ui.theme
+package dev.barrycade.voicecore.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

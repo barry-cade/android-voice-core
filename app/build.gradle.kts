@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.android_voice_core"
+    namespace = "dev.barrycade.voicecore"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.android_voice_core"
+        applicationId = "dev.barrycade.voicecore"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

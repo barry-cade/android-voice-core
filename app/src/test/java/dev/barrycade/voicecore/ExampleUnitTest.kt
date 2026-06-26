@@ -1,4 +1,4 @@
-package com.example.android_voice_core
+package dev.barrycade.voicecore
 
 import org.junit.Test
 

@@ -1,4 +1,4 @@
-package com.example.android_voice_core
+package dev.barrycade.voicecore
 
 import android.Manifest
 import android.content.Intent
@@ -11,7 +11,7 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import com.example.android_voice_core.audio.AudioTestService
+import dev.barrycade.voicecore.audio.AudioTestService
 import java.io.File
 import java.io.FileOutputStream
 
