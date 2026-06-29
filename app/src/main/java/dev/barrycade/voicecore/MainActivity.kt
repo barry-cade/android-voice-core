@@ -13,12 +13,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import dev.barrycade.voicecore.audio.AudioTestService
 import dev.barrycade.voicecore.stt.SpeechToText
-import dev.barrycade.voicecore.stt.WhisperBridge
+import dev.barrycade.voicecore.stt.SttConfig
 import java.io.File
 import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
-    private val speechToText = SpeechToText()
+    private var speechToText: SpeechToText? = null
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -64,22 +64,28 @@ class MainActivity : ComponentActivity() {
                 val modelPath = copyModelAssetToCache()
                 Log.d("WhisperTest", "Model path: $modelPath")
 
-                Log.d("WhisperTest", "Calling WhisperBridge.init")
-                val handle = WhisperBridge.init(modelPath)
-                if (handle == 0L) {
-                    runOnUiThread { outputText.text = "Error: Whisper init failed" }
-                    return@Thread
+                val stt = SpeechToText(
+                    context = this,
+                    config = SttConfig(modelPath = modelPath)
+                )
+                stt.setOnResultListener { result ->
+                    runOnUiThread {
+                        outputText.text = result
+                        Log.d("WhisperTest", "Result: $result")
+                    }
+                }
+                stt.setOnErrorListener { t ->
+                    Log.e("WhisperTest", "STT pipeline error", t)
+                    val errorMessage = "${t.javaClass.simpleName}: ${t.message}"
+                    runOnUiThread {
+                        outputText.text = "Error: $errorMessage"
+                    }
                 }
 
-                Log.d("WhisperTest", "Calling WhisperBridge.transcribe")
-                val pcm = ShortArray(1600) { 0 }
-                speechToText.hashCode()
-                val text = WhisperBridge.transcribe(handle, pcm)
-                val result = text.ifBlank { "Whisper smoke test passed" }
-
+                speechToText = stt
+                stt.start()
                 runOnUiThread {
-                    outputText.text = result
-                    Log.d("WhisperTest", "Result: $result")
+                    outputText.text = "Listening..."
                 }
             } catch (t: Throwable) {
                 Log.e("WhisperTest", "Error during smoke test", t)
@@ -93,6 +99,12 @@ class MainActivity : ComponentActivity() {
         // Commented out to isolate Whisper crash
         // val intent = Intent(this, AudioTestService::class.java)
         // ContextCompat.startForegroundService(this, intent)
+    }
+
+    override fun onDestroy() {
+        speechToText?.stop()
+        speechToText = null
+        super.onDestroy()
     }
 
     private fun copyModelAssetToCache(): String {

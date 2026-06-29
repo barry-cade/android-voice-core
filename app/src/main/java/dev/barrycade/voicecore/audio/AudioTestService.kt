@@ -12,12 +12,10 @@ import android.util.Log
 import dev.barrycade.voicecore.stt.AudioCapture
 
 class AudioTestService : Service() {
-    private val audioCapture = AudioCapture { buffer ->
-        Log.d(
-            "AudioTest",
-            "buffer=${buffer.size} samples, t=${System.currentTimeMillis()}"
-        )
-    }
+    private val audioCapture = AudioCapture(
+        sampleRate = 16000,
+        bufferSize = 2048
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -55,6 +53,13 @@ class AudioTestService : Service() {
             )
         } else {
             startForeground(1, notification)
+        }
+
+        audioCapture.setOnAudioFrameListener { buffer ->
+            Log.d(
+                "AudioTest",
+                "buffer=${buffer.size} samples, t=${System.currentTimeMillis()}"
+            )
         }
         audioCapture.start()
         return START_STICKY

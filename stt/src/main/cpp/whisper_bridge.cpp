@@ -3,38 +3,63 @@
 #include <vector>
 #include <android/log.h>
 #include <whisper.h>
+#include <mutex>
 
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "WhisperBridge", __VA_ARGS__)
 
 extern "C" {
 
-JNIEXPORT jlong JNICALL
-Java_dev_barrycade_voicecore_stt_WhisperBridge_init(JNIEnv *env, jobject /*thiz*/, jstring modelPath) {
-    LOGD("init called");
+static std::mutex g_mutex;
+static whisper_context *g_ctx = nullptr;
+
+static void release_context_locked() {
+    if (g_ctx != nullptr) {
+        whisper_free(g_ctx);
+        g_ctx = nullptr;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_dev_barrycade_voicecore_stt_WhisperBridge_loadModel(JNIEnv *env, jobject /*thiz*/, jstring modelPath) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    release_context_locked();
+
+    if (modelPath == nullptr) {
+        LOGD("modelPath is null");
+        return;
+    }
+
     const char *path = env->GetStringUTFChars(modelPath, nullptr);
     if (path == nullptr) {
         LOGD("path is null");
-        return 0;
+        return;
     }
-    LOGD("Loading model from %s", path);
 
+    LOGD("Loading model from %s", path);
     whisper_context_params params = whisper_context_default_params();
     params.use_gpu = false;
-    whisper_context *ctx = whisper_init_from_file_with_params(path, params);
+    g_ctx = whisper_init_from_file_with_params(path, params);
     env->ReleaseStringUTFChars(modelPath, path);
-    if (ctx == nullptr) {
+
+    if (g_ctx == nullptr) {
         LOGD("Failed to initialize whisper context");
     } else {
-        LOGD("Whisper context initialized: %p", ctx);
+        LOGD("Whisper context loaded");
     }
-    return reinterpret_cast<jlong>(ctx);
 }
 
 JNIEXPORT jstring JNICALL
-Java_dev_barrycade_voicecore_stt_WhisperBridge_transcribe(JNIEnv *env, jobject /*thiz*/, jlong handle, jshortArray pcm) {
-    LOGD("transcribe called with handle %ld", static_cast<long>(handle));
-    if (handle == 0 || pcm == nullptr) {
-        LOGD("Invalid handle or pcm");
+Java_dev_barrycade_voicecore_stt_WhisperBridge_transcribe(JNIEnv *env, jobject /*thiz*/, jshortArray pcm) {
+    LOGD("transcribe called");
+    if (pcm == nullptr) {
+        LOGD("pcm is null");
+        return env->NewStringUTF("");
+    }
+
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (g_ctx == nullptr) {
+        LOGD("transcribe called without loaded model");
         return env->NewStringUTF("");
     }
 
@@ -56,7 +81,6 @@ Java_dev_barrycade_voicecore_stt_WhisperBridge_transcribe(JNIEnv *env, jobject /
     }
     env->ReleaseShortArrayElements(pcm, samples, JNI_ABORT);
 
-    whisper_context *ctx = reinterpret_cast<whisper_context *>(handle);
     whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     wparams.print_progress = false;
     wparams.print_realtime = false;
@@ -65,15 +89,15 @@ Java_dev_barrycade_voicecore_stt_WhisperBridge_transcribe(JNIEnv *env, jobject /
     wparams.max_tokens = 32;
 
     LOGD("Starting whisper_full");
-    int result = whisper_full(ctx, wparams, pcmf32.data(), static_cast<int>(pcmf32.size()));
+    int result = whisper_full(g_ctx, wparams, pcmf32.data(), static_cast<int>(pcmf32.size()));
     LOGD("whisper_full returned %d", result);
 
     std::string text;
     if (result == 0) {
-        const int n_segments = whisper_full_n_segments(ctx);
+        const int n_segments = whisper_full_n_segments(g_ctx);
         LOGD("Number of segments: %d", n_segments);
         for (int i = 0; i < n_segments; ++i) {
-            const char *segment = whisper_full_get_segment_text(ctx, i);
+            const char *segment = whisper_full_get_segment_text(g_ctx, i);
             if (segment != nullptr) {
                 text += segment;
             }
@@ -87,6 +111,13 @@ Java_dev_barrycade_voicecore_stt_WhisperBridge_transcribe(JNIEnv *env, jobject /
 
     LOGD("Result text: %s", text.c_str());
     return env->NewStringUTF(text.c_str());
+}
+
+JNIEXPORT void JNICALL
+Java_dev_barrycade_voicecore_stt_WhisperBridge_unloadModel(JNIEnv * /*env*/, jobject /*thiz*/) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    release_context_locked();
+    LOGD("Model unloaded");
 }
 
 }  // extern "C"

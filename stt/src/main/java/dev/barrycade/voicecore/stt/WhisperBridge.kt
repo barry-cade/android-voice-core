@@ -11,6 +11,8 @@ object WhisperBridge {
         System.loadLibrary("whisper_bridge")
     }
 
-    external fun init(modelPath: String): Long
-    external fun transcribe(handle: Long, pcm: ShortArray): String
+    external fun loadModel(modelPath: String)
+    external fun transcribe(samples: ShortArray): String
+
+    internal external fun unloadModel()
 }
