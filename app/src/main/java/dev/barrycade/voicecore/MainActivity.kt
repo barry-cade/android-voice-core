@@ -1,113 +1,105 @@
 package dev.barrycade.voicecore
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.core.content.ContextCompat
-import dev.barrycade.voicecore.audio.AudioTestService
 import dev.barrycade.voicecore.stt.SpeechToText
 import dev.barrycade.voicecore.stt.SttConfig
 import java.io.File
 import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
-    private var speechToText: SpeechToText? = null
+    private lateinit var btnStart: Button
+    private lateinit var btnStop: Button
+    private lateinit var txtOutput: TextView
+
+    private var stt: SpeechToText? = null
+    private var isRecording = false
 
     private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions[Manifest.permission.RECORD_AUDIO] == true) {
-            startAudioService()
-        }
+        RequestPermission()
+    ) { granted ->
+        if (granted) startRecording()
+        else txtOutput.text = "Microphone permission is required"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        findViewById<Button>(R.id.startAudioTestButton).setOnClickListener {
-            val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                permissions.add(Manifest.permission.FOREGROUND_SERVICE_MICROPHONE)
-            }
+        btnStart = findViewById(R.id.btnStart)
+        btnStop = findViewById(R.id.btnStop)
+        txtOutput = findViewById(R.id.txtOutput)
 
-            val needsRequest = permissions.filter {
-                ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-            }
+        btnStart.setOnClickListener {
+            if (hasRecordAudioPermission()) startRecording()
+            else requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
 
-            if (needsRequest.isEmpty()) {
-                startAudioService()
-            } else {
-                requestPermissionLauncher.launch(needsRequest.toTypedArray())
+        btnStop.setOnClickListener {
+            if (isRecording) stopAndTranscribe()
+        }
+
+        updateUi()
+    }
+
+    private fun hasRecordAudioPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun startRecording() {
+        isRecording = true
+        txtOutput.text = "Recording..."
+        updateUi()
+
+        val modelPath = getModelPath()
+        stt = SpeechToText(
+            context = this,
+            config = SttConfig(
+                modelPath = modelPath,
+                debugInstrumentation = true
+            )
+        ).also {
+            it.setOnResultListener { result ->
+                runOnUiThread { txtOutput.text = result }
             }
+            it.setOnErrorListener { t ->
+                runOnUiThread { txtOutput.text = "Error: ${t.message}" }
+            }
+            it.start()
         }
     }
 
-    private fun startAudioService() {
-        val outputText = findViewById<TextView>(R.id.outputText)
-        outputText.text = "Running Whisper test..."
+    private fun stopAndTranscribe() {
+        isRecording = false
+        txtOutput.text = "Processing..."
+        updateUi()
 
-        // Run in a thread to keep UI responsive and see if it helps with "terminating"
         Thread {
             try {
-                Log.d("WhisperTest", "Starting copy")
-                val modelPath = copyModelAssetToCache()
-                Log.d("WhisperTest", "Model path: $modelPath")
-
-                val stt = SpeechToText(
-                    context = this,
-                    config = SttConfig(modelPath = modelPath)
-                )
-                stt.setOnResultListener { result ->
-                    runOnUiThread {
-                        outputText.text = result
-                        Log.d("WhisperTest", "Result: $result")
-                    }
-                }
-                stt.setOnErrorListener { t ->
-                    Log.e("WhisperTest", "STT pipeline error", t)
-                    val errorMessage = "${t.javaClass.simpleName}: ${t.message}"
-                    runOnUiThread {
-                        outputText.text = "Error: $errorMessage"
-                    }
-                }
-
-                speechToText = stt
-                stt.start()
-                runOnUiThread {
-                    outputText.text = "Listening..."
-                }
+                Log.d("MainActivity", "STOP pressed → using deterministic stopAndTranscribe()")
+                stt?.stopAndTranscribe()
             } catch (t: Throwable) {
-                Log.e("WhisperTest", "Error during smoke test", t)
-                val errorMessage = "${t.javaClass.simpleName}: ${t.message}"
-                runOnUiThread {
-                    outputText.text = "Error: $errorMessage"
-                }
+                runOnUiThread { txtOutput.text = "Error: ${t.message}" }
             }
         }.start()
-
-        // Commented out to isolate Whisper crash
-        // val intent = Intent(this, AudioTestService::class.java)
-        // ContextCompat.startForegroundService(this, intent)
     }
 
-    override fun onDestroy() {
-        speechToText?.stop()
-        speechToText = null
-        super.onDestroy()
+    private fun updateUi() {
+        btnStart.isEnabled = !isRecording
+        btnStop.isEnabled = isRecording
     }
 
-    private fun copyModelAssetToCache(): String {
+    private fun getModelPath(): String {
         val targetFile = File(filesDir, "model.bin")
         if (!targetFile.exists()) {
             targetFile.parentFile?.mkdirs()

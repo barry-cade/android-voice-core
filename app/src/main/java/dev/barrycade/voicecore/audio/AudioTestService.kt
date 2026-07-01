@@ -14,7 +14,7 @@ import dev.barrycade.voicecore.stt.AudioCapture
 class AudioTestService : Service() {
     private val audioCapture = AudioCapture(
         sampleRate = 16000,
-        bufferSize = 2048
+        requestedBufferSizeInBytes = 32000
     )
 
     override fun onCreate() {

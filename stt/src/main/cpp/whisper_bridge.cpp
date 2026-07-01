@@ -4,6 +4,7 @@
 #include <android/log.h>
 #include <whisper.h>
 #include <mutex>
+#include <chrono>
 
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "WhisperBridge", __VA_ARGS__)
 
@@ -22,6 +23,13 @@ static void release_context_locked() {
 JNIEXPORT void JNICALL
 Java_dev_barrycade_voicecore_stt_WhisperBridge_loadModel(JNIEnv *env, jobject /*thiz*/, jstring modelPath) {
     std::lock_guard<std::mutex> lock(g_mutex);
+    auto tStart = std::chrono::system_clock::now();
+    LOGD(
+        "loadModel called start t=%lld",
+        (long long) std::chrono::duration_cast<std::chrono::milliseconds>(
+            tStart.time_since_epoch()
+        ).count()
+    );
 
     release_context_locked();
 
@@ -47,10 +55,27 @@ Java_dev_barrycade_voicecore_stt_WhisperBridge_loadModel(JNIEnv *env, jobject /*
     } else {
         LOGD("Whisper context loaded");
     }
+
+    auto tEnd = std::chrono::system_clock::now();
+    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();
+    LOGD(
+        "loadModel finished end t=%lld dur=%lld",
+        (long long) std::chrono::duration_cast<std::chrono::milliseconds>(
+            tEnd.time_since_epoch()
+        ).count(),
+        (long long) dur
+    );
 }
 
 JNIEXPORT jstring JNICALL
 Java_dev_barrycade_voicecore_stt_WhisperBridge_transcribe(JNIEnv *env, jobject /*thiz*/, jshortArray pcm) {
+    auto tStart = std::chrono::system_clock::now();
+    LOGD(
+        "transcribe called start t=%lld",
+        (long long) std::chrono::duration_cast<std::chrono::milliseconds>(
+            tStart.time_since_epoch()
+        ).count()
+    );
     LOGD("transcribe called");
     if (pcm == nullptr) {
         LOGD("pcm is null");
@@ -85,8 +110,8 @@ Java_dev_barrycade_voicecore_stt_WhisperBridge_transcribe(JNIEnv *env, jobject /
     wparams.print_progress = false;
     wparams.print_realtime = false;
     wparams.translate = false;
-    wparams.no_context = true;
-    wparams.max_tokens = 32;
+    wparams.no_context = false;     // enable context for streaming
+    wparams.max_tokens = 128;       // or -1 for full decode
 
     LOGD("Starting whisper_full");
     int result = whisper_full(g_ctx, wparams, pcmf32.data(), static_cast<int>(pcmf32.size()));
@@ -104,9 +129,19 @@ Java_dev_barrycade_voicecore_stt_WhisperBridge_transcribe(JNIEnv *env, jobject /
         }
     }
 
+    auto tEnd = std::chrono::system_clock::now();
+    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();
+    LOGD(
+        "transcribe finished end t=%lld dur=%lld",
+        (long long) std::chrono::duration_cast<std::chrono::milliseconds>(
+            tEnd.time_since_epoch()
+        ).count(),
+        (long long) dur
+    );
+
     if (text.empty()) {
-        LOGD("Result text is empty, returning smoke test message");
-        return env->NewStringUTF("Whisper smoke test passed");
+        LOGD("Result text is empty");
+        return env->NewStringUTF("");
     }
 
     LOGD("Result text: %s", text.c_str());

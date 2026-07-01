@@ -1,6 +1,7 @@
 # android-voice-core-stt
 
 Android STT subsystem split into:
+
 - `stt`: production Android library module (AAR)
 - `app`: demo harness that consumes `stt`
 
@@ -8,6 +9,7 @@ Android STT subsystem split into:
 
 The `stt` module exposes a strict, versioned public surface.
 Only these types are allowed as top-level public API:
+
 - `SpeechToText`
 - `SttConfig`
 - `AudioCapture`
@@ -19,6 +21,7 @@ This includes helper classes, JNI plumbing, native context/session handling, thr
 ## API Verification
 
 The `stt` module enforces API shape checks via:
+
 - Gradle task: `:stt:checkSttApiSurface`
 - Lifecycle wiring: `:stt:check` depends on `checkSttApiSurface`
 
