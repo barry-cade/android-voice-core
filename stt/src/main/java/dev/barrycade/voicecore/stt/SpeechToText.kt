@@ -57,6 +57,7 @@ class SpeechToText(
 
             try {
                 resetInternalState()
+                nativeSession = NativeSession(config.debugInstrumentation).apply { loadModel(modelPath) }
 
                 isRunning.set(true)
                 startInferenceWorker()
@@ -80,7 +81,15 @@ class SpeechToText(
                     utteranceAccumulator = UtteranceAccumulator(),
                     listener = object : UtteranceListener {
                         override fun onUtteranceReady(pcm: FloatArray) {
-                            Log.d(TAG, "Utterance finalized with ${pcm.size} samples")
+                            Thread {
+                                val session = nativeSession
+                                val samples = pcm.toShortArray()
+                                val text = session?.transcribe(samples)?.trim().orEmpty()
+                                if (text.isNotBlank()) {
+                                    Log.d(TAG, "Whisper utterance transcript: $text")
+                                    onResult?.invoke(text)
+                                }
+                            }.start()
                         }
                     }
                 ).apply { start() }
@@ -195,6 +204,15 @@ class SpeechToText(
     }
 
     private fun dispatchError(t: Throwable) = onError?.invoke(t)
+
+    private fun FloatArray.toShortArray(): ShortArray {
+        val shorts = ShortArray(size)
+        for (index in indices) {
+            val clamped = kotlin.math.max(-1.0f, kotlin.math.min(1.0f, this[index]))
+            shorts[index] = (clamped * Short.MAX_VALUE).toInt().toShort()
+        }
+        return shorts
+    }
 
     private class NativeSession(private val debug: Boolean) {
         fun loadModel(path: String) {
