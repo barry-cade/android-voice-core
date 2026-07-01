@@ -30,6 +30,7 @@ class SpeechToText(
     private val stateLock = Any()
 
     private var audioCapture: AudioCapture? = null
+    private var sttProcessor: SttProcessor? = null
     private var nativeSession: NativeSession? = null
 
     private val audioQueue: BlockingQueue<ShortArray> = LinkedBlockingQueue()
@@ -56,12 +57,11 @@ class SpeechToText(
 
             try {
                 resetInternalState()
-                nativeSession = NativeSession(config.debugInstrumentation).apply { loadModel(modelPath) }
 
                 isRunning.set(true)
                 startInferenceWorker()
 
-                audioCapture = AudioCapture(
+                val capture = AudioCapture(
                     sampleRate = config.sampleRate,
                     requestedBufferSizeInBytes = config.bufferSize
                 ).apply {
@@ -72,6 +72,19 @@ class SpeechToText(
                     }
                     start()
                 }
+                audioCapture = capture
+
+                sttProcessor = SttProcessor(
+                    audioCapture = capture,
+                    vad = Vad(),
+                    utteranceAccumulator = UtteranceAccumulator(),
+                    listener = object : UtteranceListener {
+                        override fun onUtteranceReady(pcm: FloatArray) {
+                            Log.d(TAG, "Utterance finalized with ${pcm.size} samples")
+                        }
+                    }
+                ).apply { start() }
+
                 Log.d(TAG, "Single-pass transcription pipeline started")
             } catch (t: Throwable) {
                 stopInternal()
@@ -86,6 +99,9 @@ class SpeechToText(
             isRunning.set(false)
 
             try {
+                sttProcessor?.stop()
+                sttProcessor = null
+
                 audioCapture?.stop()
                 audioCapture = null
 
@@ -167,6 +183,8 @@ class SpeechToText(
 
     private fun stopInternal() {
         isRunning.set(false)
+        sttProcessor?.stop()
+        sttProcessor = null
         audioCapture?.stop()
         audioCapture = null
         inferenceWorker?.shutdownNow()

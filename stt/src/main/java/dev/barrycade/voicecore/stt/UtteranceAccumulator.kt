@@ -23,14 +23,14 @@ internal class UtteranceAccumulator(
     private var totalDurationMs = 0
     private val preRollBuffer = mutableListOf<Float>()
 
-    fun processFrame(frame: FloatArray): FloatArray? {
+    fun processChunk(frame: FloatArray, isSpeechFrame: Boolean): FloatArray? {
         if (frame.isEmpty()) return null
 
         val frameDurationMs = frame.size * 1000 / sampleRate
         totalDurationMs += frameDurationMs
 
         return if (speechActive) {
-            if (vad.isSpeech(frame)) {
+            if (isSpeechFrame) {
                 speechAccumulator.addAll(frame.toList())
                 silenceFrameCount = 0
                 if (totalDurationMs > maxUtteranceLengthMs) {
@@ -48,7 +48,6 @@ internal class UtteranceAccumulator(
                 }
             }
         } else {
-            val isSpeechFrame = vad.isSpeech(frame)
             if (isSpeechFrame) {
                 speechActive = true
                 silenceFrameCount = 0
@@ -70,6 +69,8 @@ internal class UtteranceAccumulator(
             }
         }
     }
+
+    fun processFrame(frame: FloatArray): FloatArray? = processChunk(frame, vad.isSpeech(frame))
 
     fun reset() {
         speechAccumulator.clear()
