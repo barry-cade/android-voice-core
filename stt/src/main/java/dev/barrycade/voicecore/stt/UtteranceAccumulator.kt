@@ -12,6 +12,15 @@ internal class UtteranceAccumulator(
     private val stableBlockMs: Int = 500,
     private val vad: Vad = Vad()
 ) {
+    constructor(config: RuntimeSttConfig, sampleRate: Int = 16000, vad: Vad = Vad(config)) : this(
+        sampleRate = sampleRate,
+        preRollMs = config.preRollMs,
+        silenceDurationMs = config.silencePaddingMs,
+        maxUtteranceLengthMs = config.maxUtteranceLengthMs,
+        stableBlockMs = config.stableChunkSizeMs,
+        vad = vad
+    )
+
     private val preRollSamples = (sampleRate * preRollMs / 1000).coerceAtLeast(1)
     private val silenceFrameDurationMs = 20
     private val maxSilenceFrames = (silenceDurationMs / silenceFrameDurationMs).coerceAtLeast(1)

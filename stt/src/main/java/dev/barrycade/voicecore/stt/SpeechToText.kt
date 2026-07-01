@@ -58,6 +58,8 @@ class SpeechToText(
 
             try {
                 resetInternalState()
+                val runtimeConfig = SttConfigLoader.load(context)
+                Log.i(TAG, "Loaded STT config: $runtimeConfig")
                 nativeSession = NativeSession(config.debugInstrumentation).apply { loadModel(modelPath) }
 
                 isRunning.set(true)
@@ -78,8 +80,8 @@ class SpeechToText(
 
                 sttProcessor = SttProcessor(
                     audioCapture = capture,
-                    vad = Vad(),
-                    utteranceAccumulator = UtteranceAccumulator(),
+                    vad = Vad(runtimeConfig),
+                    utteranceAccumulator = UtteranceAccumulator(runtimeConfig),
                     listener = object : UtteranceListener {
                         override fun onUtteranceReady(pcm: FloatArray) {
                             Thread {
