@@ -5,6 +5,18 @@
     android:padding="24dp"
     android:orientation="vertical">
 
+    <TextView
+        android:id="@+id/txtErrorBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFCDD2"
+        android:padding="8dp"
+        android:layout_marginBottom="16dp"
+        android:textColor="#B71C1C"
+        android:textStyle="bold"
+        android:visibility="gone"
+        android:text="STT is unavailable due to invalid configuration.\nCheck stt_config.json and restart the app." />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

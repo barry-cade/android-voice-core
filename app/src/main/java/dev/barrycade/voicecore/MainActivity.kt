@@ -17,10 +17,13 @@ import java.io.FileOutputStream
 class MainActivity : ComponentActivity() {
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
+    private lateinit var btnClear: Button
     private lateinit var txtOutput: TextView
+    private lateinit var txtErrorBanner: TextView
 
     private var stt: SpeechToText? = null
     private var isRecording = false
+    private var sttAvailable = true
 
     private val requestPermissionLauncher = registerForActivityResult(
         RequestPermission()
@@ -35,15 +38,23 @@ class MainActivity : ComponentActivity() {
 
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
+        btnClear = findViewById(R.id.btnClear)
         txtOutput = findViewById(R.id.txtOutput)
+        txtErrorBanner = findViewById(R.id.txtErrorBanner)
 
         btnStart.setOnClickListener {
+            if (!sttAvailable) return@setOnClickListener
             if (hasRecordAudioPermission()) startRecording()
             else requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
 
         btnStop.setOnClickListener {
+            if (!sttAvailable) return@setOnClickListener
             if (isRecording) stopAndTranscribe()
+        }
+
+        btnClear.setOnClickListener {
+            txtOutput.text = ""
         }
 
         updateUi()
@@ -57,8 +68,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startRecording() {
+        if (!sttAvailable) return
+
         val modelPath = getModelPath()
-        val runtimeConfig = AppSttConfigLoader.loadFromAssets(this)
+        val runtimeConfig = try {
+            AppSttConfigLoader.loadFromAssets(this)
+        } catch (e: Exception) {
+            handleConfigError(e)
+            return
+        }
 
         try {
             stt = SpeechToText(
@@ -78,15 +96,21 @@ class MainActivity : ComponentActivity() {
             txtOutput.text = "Recording..."
             updateUi()
         } catch (e: IllegalArgumentException) {
-            Log.e("STT_CONFIG", "Invalid STT configuration: ${e.message}", e)
-            showErrorDialog(
-                title = "Invalid STT Configuration",
-                message = "The STT tuning values are invalid:\n${e.message}"
-            )
-            isRecording = false
-            btnStart.isEnabled = false
-            stt = null
+            handleConfigError(e)
         }
+    }
+
+    private fun handleConfigError(e: Exception) {
+        Log.e("STT_CONFIG", "Invalid STT configuration: ${e.message}", e)
+        showErrorDialog(
+            title = "Invalid STT Configuration",
+            message = "The STT tuning values are invalid:\n${e.message}"
+        )
+        sttAvailable = false
+        isRecording = false
+        stt = null
+        txtErrorBanner.visibility = android.view.View.VISIBLE
+        updateUi()
     }
 
     private fun showErrorDialog(title: String, message: String) {
@@ -98,6 +122,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stopAndTranscribe() {
+        if (!sttAvailable) return
         isRecording = false
         txtOutput.text = "Processing..."
         updateUi()
@@ -113,8 +138,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateUi() {
+        if (!sttAvailable) {
+            btnStart.isEnabled = false
+            btnStop.isEnabled = false
+            btnClear.isEnabled = false
+            return
+        }
         btnStart.isEnabled = !isRecording
         btnStop.isEnabled = isRecording
+        btnClear.isEnabled = !isRecording
     }
 
     private fun getModelPath(): String {
