@@ -2,8 +2,8 @@ package dev.barrycade.voicecore
 
 import android.content.Context
 import android.util.Log
-import dev.barrycade.voicecore.MotionModeConfig
-import dev.barrycade.voicecore.RuntimeSttConfig
+import dev.barrycade.voicecore.stt.MotionModeConfig
+import dev.barrycade.voicecore.stt.RuntimeSttConfig
 import org.json.JSONObject
 
 object AppSttConfigLoader {

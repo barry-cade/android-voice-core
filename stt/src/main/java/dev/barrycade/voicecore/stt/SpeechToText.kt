@@ -15,34 +15,17 @@ import java.util.concurrent.atomic.AtomicBoolean
  * keeping the Whisper bridge and capture path intact for future replacement.
  */
 class SpeechToText(
-    energyThreshold: Float,
-    silencePaddingMs: Int,
-    preRollMs: Int,
-    maxUtteranceLengthMs: Int,
-    stableChunkSizeMs: Int,
-    highPassCutoffHz: Int,
-    motionModeEnergyThreshold: Float,
-    motionModeSilencePaddingMs: Int,
-    modelPath: String
+    private val config: RuntimeSttConfig,
+    private val modelPath: String
 ) {
     companion object {
         private const val TAG = "STT_STREAM"
     }
 
-    private val config: SttRuntimeConfig = object : SttRuntimeConfig {
-        override val energyThreshold: Float = energyThreshold
-        override val silencePaddingMs: Int = silencePaddingMs
-        override val preRollMs: Int = preRollMs
-        override val maxUtteranceLengthMs: Int = maxUtteranceLengthMs
-        override val stableChunkSizeMs: Int = stableChunkSizeMs
-        override val highPassCutoffHz: Int = highPassCutoffHz
-        override val motionMode: SttMotionModeConfig = object : SttMotionModeConfig {
-            override val energyThreshold: Float = motionModeEnergyThreshold
-            override val silencePaddingMs: Int = motionModeSilencePaddingMs
-        }
+    init {
+        config.validate()
+        Log.i("STT_CONFIG", "Validated STT config: $config")
     }
-
-    private val modelPathValue: String = modelPath
 
     private var onResult: ((String) -> Unit)? = null
     private var onError: ((Throwable) -> Unit)? = null
@@ -78,7 +61,7 @@ class SpeechToText(
             try {
                 resetInternalState()
                 dumpConfig()
-                nativeSession = NativeSession(debug = true).apply { loadModel(modelPathValue) }
+                nativeSession = NativeSession(debug = true).apply { loadModel(modelPath) }
 
                 isRunning.set(true)
                 startInferenceWorker()

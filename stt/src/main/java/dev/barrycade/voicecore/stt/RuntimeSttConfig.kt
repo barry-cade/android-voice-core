@@ -1,7 +1,5 @@
 package dev.barrycade.voicecore.stt
 
-import android.util.Log
-
 data class RuntimeSttConfig(
     val energyThreshold: Float,
     val silencePaddingMs: Int,

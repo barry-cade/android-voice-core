@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.core.content.ContextCompat
 import dev.barrycade.voicecore.stt.SpeechToText
+import dev.barrycade.voicecore.stt.RuntimeSttConfig
 import java.io.File
 import java.io.FileOutputStream
 
@@ -63,14 +64,7 @@ class MainActivity : ComponentActivity() {
         val modelPath = getModelPath()
         val runtimeConfig = AppSttConfigLoader.loadFromAssets(this)
         stt = SpeechToText(
-            energyThreshold = runtimeConfig.energyThreshold,
-            silencePaddingMs = runtimeConfig.silencePaddingMs,
-            preRollMs = runtimeConfig.preRollMs,
-            maxUtteranceLengthMs = runtimeConfig.maxUtteranceLengthMs,
-            stableChunkSizeMs = runtimeConfig.stableChunkSizeMs,
-            highPassCutoffHz = runtimeConfig.highPassCutoffHz,
-            motionModeEnergyThreshold = runtimeConfig.motionMode.energyThreshold,
-            motionModeSilencePaddingMs = runtimeConfig.motionMode.silencePaddingMs,
+            config = runtimeConfig,
             modelPath = modelPath
         ).also {
             it.setOnResultListener { result ->
