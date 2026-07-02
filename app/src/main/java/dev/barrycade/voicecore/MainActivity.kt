@@ -8,9 +8,9 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
+import android.app.AlertDialog
 import androidx.core.content.ContextCompat
 import dev.barrycade.voicecore.stt.SpeechToText
-import dev.barrycade.voicecore.stt.RuntimeSttConfig
 import java.io.File
 import java.io.FileOutputStream
 
@@ -57,24 +57,44 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startRecording() {
-        isRecording = true
-        txtOutput.text = "Recording..."
-        updateUi()
-
         val modelPath = getModelPath()
         val runtimeConfig = AppSttConfigLoader.loadFromAssets(this)
-        stt = SpeechToText(
-            config = runtimeConfig,
-            modelPath = modelPath
-        ).also {
-            it.setOnResultListener { result ->
-                runOnUiThread { txtOutput.text = result }
+
+        try {
+            stt = SpeechToText(
+                config = runtimeConfig,
+                modelPath = modelPath
+            ).also {
+                it.setOnResultListener { result ->
+                    runOnUiThread { txtOutput.text = result }
+                }
+                it.setOnErrorListener { t ->
+                    runOnUiThread { txtOutput.text = "Error: ${t.message}" }
+                }
+                it.start()
             }
-            it.setOnErrorListener { t ->
-                runOnUiThread { txtOutput.text = "Error: ${t.message}" }
-            }
-            it.start()
+
+            isRecording = true
+            txtOutput.text = "Recording..."
+            updateUi()
+        } catch (e: IllegalArgumentException) {
+            Log.e("STT_CONFIG", "Invalid STT configuration: ${e.message}", e)
+            showErrorDialog(
+                title = "Invalid STT Configuration",
+                message = "The STT tuning values are invalid:\n${e.message}"
+            )
+            isRecording = false
+            btnStart.isEnabled = false
+            stt = null
         }
+    }
+
+    private fun showErrorDialog(title: String, message: String) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun stopAndTranscribe() {
