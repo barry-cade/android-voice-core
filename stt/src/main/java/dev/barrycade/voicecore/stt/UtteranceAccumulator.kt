@@ -12,7 +12,7 @@ internal class UtteranceAccumulator(
     private val stableBlockMs: Int = 500,
     private val vad: Vad = Vad()
 ) {
-    constructor(config: RuntimeSttConfig, sampleRate: Int = 16000, vad: Vad = Vad(config)) : this(
+    constructor(config: SttRuntimeConfig, sampleRate: Int = 16000, vad: Vad = Vad(config)) : this(
         sampleRate = sampleRate,
         preRollMs = config.preRollMs,
         silenceDurationMs = config.silencePaddingMs,

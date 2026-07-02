@@ -1,6 +1,5 @@
 package dev.barrycade.voicecore.stt
 
-import android.content.Context
 import android.util.Log
 import java.util.Collections
 import java.util.concurrent.BlockingQueue
@@ -16,12 +15,34 @@ import java.util.concurrent.atomic.AtomicBoolean
  * keeping the Whisper bridge and capture path intact for future replacement.
  */
 class SpeechToText(
-    @Suppress("UNUSED_PARAMETER") private val context: Context,
-    private val config: SttConfig = SttConfig()
+    energyThreshold: Float,
+    silencePaddingMs: Int,
+    preRollMs: Int,
+    maxUtteranceLengthMs: Int,
+    stableChunkSizeMs: Int,
+    highPassCutoffHz: Int,
+    motionModeEnergyThreshold: Float,
+    motionModeSilencePaddingMs: Int,
+    modelPath: String
 ) {
     companion object {
         private const val TAG = "STT_STREAM"
     }
+
+    private val config: SttRuntimeConfig = object : SttRuntimeConfig {
+        override val energyThreshold: Float = energyThreshold
+        override val silencePaddingMs: Int = silencePaddingMs
+        override val preRollMs: Int = preRollMs
+        override val maxUtteranceLengthMs: Int = maxUtteranceLengthMs
+        override val stableChunkSizeMs: Int = stableChunkSizeMs
+        override val highPassCutoffHz: Int = highPassCutoffHz
+        override val motionMode: SttMotionModeConfig = object : SttMotionModeConfig {
+            override val energyThreshold: Float = motionModeEnergyThreshold
+            override val silencePaddingMs: Int = motionModeSilencePaddingMs
+        }
+    }
+
+    private val modelPathValue: String = modelPath
 
     private var onResult: ((String) -> Unit)? = null
     private var onError: ((Throwable) -> Unit)? = null
@@ -54,20 +75,17 @@ class SpeechToText(
         synchronized(stateLock) {
             if (isRunning.get()) return
 
-            val modelPath = config.modelPath ?: throw IllegalArgumentException("modelPath required")
-
             try {
                 resetInternalState()
-                val runtimeConfig = SttConfigLoader.load(context)
-                Log.i(TAG, "Loaded STT config: $runtimeConfig")
-                nativeSession = NativeSession(config.debugInstrumentation).apply { loadModel(modelPath) }
+                dumpConfig()
+                nativeSession = NativeSession(debug = true).apply { loadModel(modelPathValue) }
 
                 isRunning.set(true)
                 startInferenceWorker()
 
                 val capture = AudioCapture(
-                    sampleRate = config.sampleRate,
-                    requestedBufferSizeInBytes = config.bufferSize
+                    sampleRate = 16000,
+                    requestedBufferSizeInBytes = 32000
                 ).apply {
                     setOnAudioFrameListener { frame ->
                         if (!audioQueue.offer(frame)) {
@@ -80,8 +98,8 @@ class SpeechToText(
 
                 sttProcessor = SttProcessor(
                     audioCapture = capture,
-                    vad = Vad(runtimeConfig),
-                    utteranceAccumulator = UtteranceAccumulator(runtimeConfig),
+                    vad = Vad(config),
+                    utteranceAccumulator = UtteranceAccumulator(config),
                     listener = object : UtteranceListener {
                         override fun onUtteranceReady(pcm: FloatArray) {
                             Thread {
@@ -208,6 +226,10 @@ class SpeechToText(
     }
 
     private fun dispatchError(t: Throwable) = onError?.invoke(t)
+
+    fun dumpConfig() {
+        Log.i("STT_CONFIG", "Active config: $config")
+    }
 
     private fun FloatArray.toShortArray(): ShortArray {
         val shorts = ShortArray(size)

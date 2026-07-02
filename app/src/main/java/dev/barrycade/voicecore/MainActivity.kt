@@ -10,7 +10,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.core.content.ContextCompat
 import dev.barrycade.voicecore.stt.SpeechToText
-import dev.barrycade.voicecore.stt.SttConfig
 import java.io.File
 import java.io.FileOutputStream
 
@@ -62,12 +61,17 @@ class MainActivity : ComponentActivity() {
         updateUi()
 
         val modelPath = getModelPath()
+        val runtimeConfig = AppSttConfigLoader.loadFromAssets(this)
         stt = SpeechToText(
-            context = this,
-            config = SttConfig(
-                modelPath = modelPath,
-                debugInstrumentation = true
-            )
+            energyThreshold = runtimeConfig.energyThreshold,
+            silencePaddingMs = runtimeConfig.silencePaddingMs,
+            preRollMs = runtimeConfig.preRollMs,
+            maxUtteranceLengthMs = runtimeConfig.maxUtteranceLengthMs,
+            stableChunkSizeMs = runtimeConfig.stableChunkSizeMs,
+            highPassCutoffHz = runtimeConfig.highPassCutoffHz,
+            motionModeEnergyThreshold = runtimeConfig.motionMode.energyThreshold,
+            motionModeSilencePaddingMs = runtimeConfig.motionMode.silencePaddingMs,
+            modelPath = modelPath
         ).also {
             it.setOnResultListener { result ->
                 runOnUiThread { txtOutput.text = result }
